@@ -1,0 +1,38 @@
+<h2>选择技术架构方案</h2>
+<p class="subtitle">三种方案都能实现目标，各有侧重</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>纯前端 SPA + 边缘函数代理</h3>
+      <p>Vue 3 纯前端应用 + Vercel/Netlify Function 代理讯飞 API。最轻量，部署最简单，一个命令上线。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>部署最简单，免费托管</li><li>前端即全栈，心智负担低</li><li>Serverless 自动扩缩</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>依赖第三方平台</li><li>冷启动有延迟</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Nuxt 3 全栈框架（推荐）</h3>
+      <p>Vue 3 生态的全栈框架，前端 + API 路由在一个项目中统一管理。最符合这个场景。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>前后端统一项目，开发体验好</li><li>API 路由开箱即用，代理讯飞 API</li><li>Vue 生态最佳实践，文件即路由</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要 Node.js 运行环境</li><li>相比纯前端多一层概念</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>前后端分离</h3>
+      <p>Vue 3 前端 + Express/Fastify 独立后端，职责清晰，适合后续扩展。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>前后端独立部署和扩展</li><li>扩展性最好，适合团队协作</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>项目结构更复杂</li><li>需要协调两个服务</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
