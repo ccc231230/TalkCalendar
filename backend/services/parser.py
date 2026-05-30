@@ -26,8 +26,8 @@ def _cn2n(s):
 def _parse_time(text):
     d = r"([一两二三四五六七八九十]|十一|十二|\d{1,2})"
     for pat, fn in [
-        (re.compile(r"(早上|早晨|上午)"+d+r"点"), lambda m:_cn2n(m.group(2))),
-        (re.compile(r"(早上|早晨|上午)"+d+r"点半"), lambda m:_cn2n(m.group(2))+0.5),
+        (re.compile(r"(早|早上|早晨|上午)"+d+r"点"), lambda m:_cn2n(m.group(2))),
+        (re.compile(r"(早|早上|早晨|上午)"+d+r"点半"), lambda m:_cn2n(m.group(2))+0.5),
         (re.compile(r"下午"+d+r"点"), lambda m:_cn2n(m.group(1))+12),
         (re.compile(r"下午"+d+r"点半"), lambda m:_cn2n(m.group(1))+12.5),
         (re.compile(r"晚上"+d+r"点"), lambda m:_cn2n(m.group(1))+12 if _cn2n(m.group(1))<8 else _cn2n(m.group(1))),
@@ -56,8 +56,20 @@ def _parse_date(text):
     today = date.today()
     for w,off in DAY_MAP.items():
         if w in text: return today+timedelta(days=off)
-    for w,off in WD_MAP.items():
-        if w in text: return today+timedelta(days=off)
+    for w in sorted(WD_MAP.keys(), key=len, reverse=True):
+        if w in text:
+            off = WD_MAP[w]
+            # Calculate next occurrence of this weekday
+            today_wd = today.weekday()
+            target_wd = off % 7
+            days_ahead = target_wd - today_wd
+            if days_ahead < 0:
+                days_ahead += 7
+            result = today + timedelta(days=days_ahead)
+            # For "下" prefix entries, add another week
+            if off >= 7:
+                result += timedelta(days=7)
+            return result
     m = re.search(r"(\d{1,2})月(\d{1,2})[号日]", text)
     if m:
         y = today.year; t = date(y,int(m.group(1)),int(m.group(2)))
@@ -103,16 +115,21 @@ def _extract_title(text, intent):
     c = text
     for kw in ADD_KW+DEL_KW+QRY_KW: c = c.replace(kw,"")
     c = re.sub(r"(今天|明天|后天|大后天)","",c)
-    c = re.sub(r"(早上|早晨|上午|下午|晚上|中午)","",c)
+    c = re.sub(r"(早|早上|早晨|上午|下午|晚上|中午)","",c)
     c = re.sub(r"([一两二三四五六七八九十]|十一|十二|\d{1,2})点(半)?","",c)
     c = re.sub(r"(\d{1,2}):(\d{2})","",c)
     c = re.sub(r"(\d{1,2})月(\d{1,2})[号日]","",c)
     c = re.sub(r"(每[天周月日])","",c)
+    c = re.sub(r"每[个]?","",c)
+    c = re.sub(r"每[个]?","",c)
     c = re.sub(r"(每个[一二三四五六日])","",c)
     c = re.sub(r"(每周[一-日]|每星期[一-日])","",c)
     c = re.sub(r"(下?周[一-日]|下?星期[一-日天])","",c)
     c = re.sub(r"的","",c)
     c = re.sub(r"\s+"," ",c).strip()
+    # Strip leftover standalone digits, particles, conjunctions
+    c = re.sub(r"^[一二两三四五六七八九十\d]+\s*", "", c)
+    c = re.sub(r"^的\s*", "", c)
     return c if (c and len(c)>1 and intent!="query") else None
 
 def parse_voice_command(text):

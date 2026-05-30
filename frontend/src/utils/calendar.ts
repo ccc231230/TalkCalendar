@@ -44,9 +44,9 @@ export function getEventsForDay(events: CalendarEvent[], date: dayjs.Dayjs): Cal
 function matchesRecurrence(event: CalendarEvent, date: dayjs.Dayjs): boolean {
   if (!event.recurrenceRule) return false
   const rule = event.recurrenceRule.toUpperCase()
-  const eventStart = dayjs(event.startTime)
+    // const eventStart = dayjs(event.startTime) // unused
   const dayOfWeek = date.format("dd").toUpperCase()
-  const dayNum = date.date()
+    // const dayNum = date.date() // unused
   const monthDay = date.date()
 
   // "FREQ=WEEKLY;BYDAY=MO"

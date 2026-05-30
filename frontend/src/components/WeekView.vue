@@ -1,44 +1,22 @@
 <template>
-  <div class="week-view">
+  <div class="week-panel">
     <div class="week-header">
       <div class="time-gutter"></div>
-      <div
-        v-for="(day, idx) in weekDays"
-        :key="idx"
-        class="day-header"
-        :class="{ today: isToday(day) }"
-      >
+      <div v-for="(day, idx) in weekDays" :key="idx" class="day-hd" :class="{ today: isToday(day) }">
         <span class="day-name">{{ day.format("ddd") }}</span>
-        <span class="day-date">{{ day.date() }}</span>
+        <span class="day-num">{{ day.date() }}</span>
       </div>
     </div>
     <div class="week-body">
-      <div class="time-column">
-        <div v-for="h in hoursRange" :key="h" class="time-label">
-          {{ String(h).padStart(2, "0") }}:00
-        </div>
+      <div class="time-col">
+        <div v-for="h in hours" :key="h" class="time-label">{{ String(h).padStart(2,"0") }}:00</div>
       </div>
-      <div class="days-grid">
-        <div
-          v-for="(day, di) in weekDays"
-          :key="di"
-          class="day-column"
-          :style="{ height: totalHeight + 'px' }"
-        >
-          <div
-            v-for="h in hoursRange"
-            :key="h"
-            class="hour-slot"
-            @click="clickSlot(day, h)"
-          ></div>
-          <div
-            v-for="ev in getPositionedEvents(day)"
-            :key="ev.event.id"
-            class="week-event"
-            :style="ev.style"
-            @click="emit('openEvent', ev.event)"
-          >
-            <span class="event-title">{{ ev.event.title }}</span>
+      <div class="days-area">
+        <div v-for="(day, di) in weekDays" :key="di" class="day-col" :style="{ height: totalH + 'px' }">
+          <div v-for="h in hours" :key="h" class="slot" @click="clickSlot(day, h)"></div>
+          <div v-for="ev in positioned(day)" :key="ev.event.id" class="w-ev" :style="ev.style" @click="emit('openEvent', ev.event)">
+            <span class="w-ev-time">{{ timeLabel(ev.event.startTime) }}</span>
+            <span class="w-ev-title">{{ ev.event.title }}</span>
           </div>
         </div>
       </div>
@@ -54,119 +32,73 @@ import { getWeekDays, getEventsForDay, isToday } from "../utils/calendar"
 import type { CalendarEvent } from "../types/event"
 
 const store = useCalendarStore()
-
-const DAY_START = 8
-const DAY_END = 22
-const SLOT_H = 50
-const totalHours = DAY_END - DAY_START
-const totalHeight = totalHours * SLOT_H
-
-const hoursRange = computed(() => {
-  const arr: number[] = []
-  for (let h = DAY_START; h <= DAY_END; h++) arr.push(h)
-  return arr
-})
-
+const START = 8; const END = 22; const SLOT = 50
+const hours = computed(() => { const a: number[] = []; for (let h=START;h<=END;h++) a.push(h); return a })
+const totalH = (END - START) * SLOT
 const weekDays = computed(() => getWeekDays(store.currentDate))
+const emit = defineEmits<{ clickSlot: [date: dayjs.Dayjs, hour: number]; openEvent: [event: CalendarEvent] }>()
 
-const emit = defineEmits<{
-  clickSlot: [date: dayjs.Dayjs, hour: number]
-  openEvent: [event: CalendarEvent]
-}>()
+function timeLabel(iso: string) { return dayjs(iso).format("HH:mm") }
 
-interface PositionedEvent {
-  event: CalendarEvent
-  style: Record<string, string>
-}
+interface Pos { event: CalendarEvent; style: Record<string,string> }
+function positioned(day: dayjs.Dayjs): Pos[] {
+  const evs = getEventsForDay(store.events, day).filter(e => !e.isAllDay)
+  if (!evs.length) return []
+  const ds = day.startOf("day")
+  type R = { event: CalendarEvent; top: number; h: number; lane: number }
+  const raw: R[] = evs.map(e => {
+    const s = dayjs(e.startTime); const ed = dayjs(e.endTime)
+    const sh = Math.max(s.diff(ds,"hour",true), START)
+    const eh = Math.min(ed.diff(ds,"hour",true), END)
+    return { event: e, top: (sh - START)*SLOT, h: Math.max((eh - sh)*SLOT, 22), lane: 0 }
+  }).sort((a,b) => a.top - b.top || b.h - a.h)
 
-function getPositionedEvents(day: dayjs.Dayjs): PositionedEvent[] {
-  const events = getEventsForDay(store.events, day).filter((e) => !e.isAllDay)
-  if (events.length === 0) return []
-
-  const dayStart = day.startOf("day")
-
-  // Calculate raw positions for each event
-  interface RawEvent {
-    event: CalendarEvent
-    top: number
-    height: number
-    lane: number
+  const lanes: { end: number }[] = []
+  for (const r of raw) {
+    let l = 0
+    while (l < lanes.length && lanes[l].end > r.top) l++
+    r.lane = l
+    if (l >= lanes.length) lanes.push({ end: r.top + r.h })
+    else lanes[l].end = r.top + r.h
   }
-  const raw: RawEvent[] = events
-    .map((e) => {
-      const start = dayjs(e.startTime)
-      const end = dayjs(e.endTime)
-      const sh = Math.max(start.diff(dayStart, "hour", true), DAY_START)
-      const eh = Math.min(end.diff(dayStart, "hour", true), DAY_END)
-      return {
-        event: e,
-        top: (sh - DAY_START) * SLOT_H,
-        height: Math.max((eh - sh) * SLOT_H, 18),
-        lane: 0,
-      }
-    })
-    .sort((a, b) => a.top - b.top || b.height - a.height)
-
-  // Assign lanes to avoid overlap
-  const lanes: { endY: number }[] = []
-
-  for (const item of raw) {
-    let lane = 0
-    while (lane < lanes.length && lanes[lane].endY > item.top) {
-      lane++
+  const n = lanes.length
+  return raw.map(r => ({
+    event: r.event,
+    style: {
+      top: r.top + "px", height: r.h + "px",
+      left: (r.lane * 100/n) + "%", width: (100/n) + "%",
+      background: r.event.color + "18", borderLeftColor: r.event.color,
     }
-    item.lane = lane
-    if (lane >= lanes.length) {
-      lanes.push({ endY: item.top + item.height })
-    } else {
-      lanes[lane].endY = item.top + item.height
-    }
-  }
-
-  const totalLanes = lanes.length
-
-  return raw.map((item) => {
-    const laneWidth = 100 / totalLanes
-    return {
-      event: item.event,
-      style: {
-        top: item.top + "px",
-        height: item.height + "px",
-        left: (item.lane * laneWidth) + "%",
-        width: laneWidth + "%",
-        backgroundColor: item.event.color + "25",
-        borderLeftColor: item.event.color,
-      },
-    }
-  })
+  }))
 }
-
-function clickSlot(day: dayjs.Dayjs, hour: number) {
-  const date = day.hour(hour).minute(0).second(0)
-  emit("clickSlot", date, hour)
-}
+function clickSlot(day: dayjs.Dayjs, h: number) { emit("clickSlot", day.hour(h).minute(0).second(0), h) }
 </script>
 
 <style scoped>
-.week-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.week-header { display: flex; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
-.time-gutter { width: 60px; flex-shrink: 0; }
-.day-header { flex: 1; text-align: center; padding: 6px 0; }
-.day-header.today { background: #e8f4fd; border-radius: 4px; }
-.day-name { display: block; font-size: 11px; color: #888; }
-.day-date { font-weight: 600; font-size: 16px; }
-.week-body { display: flex; flex: 1; overflow-y: auto; overflow-x: hidden; }
-.time-column { width: 60px; flex-shrink: 0; padding-top: 0; }
-.time-label { height: 50px; font-size: 11px; color: #999; text-align: right; padding-right: 6px; line-height: 50px; box-sizing: border-box; }
-.days-grid { display: flex; flex: 1; }
-.day-column { flex: 1; border-left: 1px solid #eee; position: relative; }
-.hour-slot { height: 50px; border-bottom: 1px solid #f0f0f0; box-sizing: border-box; cursor: pointer; }
-.hour-slot:hover { background: #f5f7fa; }
-.week-event {
-  position: absolute; border-left: 3px solid; border-radius: 3px;
-  padding: 2px 4px; font-size: 11px; overflow: hidden;
-  cursor: pointer; z-index: 1; box-sizing: border-box;
+.week-panel {
+  display: flex; flex-direction: column; height: 100%;
+  background: var(--bg-surface); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); overflow: hidden;
 }
-.week-event:hover { filter: brightness(0.95); z-index: 2; }
-.week-event .event-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.week-header { display: flex; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
+.time-gutter { width: 56px; flex-shrink: 0; }
+.day-hd { flex: 1; text-align: center; padding: 10px 0; }
+.day-hd.today { background: var(--accent-soft); border-radius: 6px 6px 0 0; }
+.day-name { display: block; font-size: 11px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; }
+.day-num { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.week-body { display: flex; flex: 1; overflow-y: auto; overflow-x: hidden; }
+.time-col { width: 56px; flex-shrink: 0; }
+.time-label { height: 50px; font-size: 10px; color: var(--text-tertiary); text-align: right; padding-right: 8px; line-height: 50px; }
+.days-area { display: flex; flex: 1; }
+.day-col { flex: 1; border-left: 1px solid var(--border-light); position: relative; }
+.slot { height: 50px; border-bottom: 1px solid var(--border-light); cursor: pointer; transition: background var(--transition); }
+.slot:hover { background: var(--bg-hover); }
+.w-ev {
+  position: absolute; left: 1px; right: 1px; border-left: 3px solid;
+  border-radius: 4px; padding: 3px 6px; font-size: 11px; overflow: hidden;
+  cursor: pointer; z-index: 1; transition: box-shadow var(--transition);
+}
+.w-ev:hover { box-shadow: var(--shadow-md); z-index: 2; }
+.w-ev-time { font-size: 10px; color: var(--text-tertiary); margin-right: 4px; }
+.w-ev-title { font-weight: 600; color: var(--text-primary); }
 </style>

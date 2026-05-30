@@ -1,4 +1,4 @@
-﻿import { ref, nextTick } from "vue"
+﻿import {ref} from "vue"
 import type { VoiceParseResult } from "../types/event"
 import { useVoiceRecorder } from "./useVoiceRecorder"
 
