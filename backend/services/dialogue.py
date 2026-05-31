@@ -242,8 +242,9 @@ async def execute_tool(tool_name: str, arguments: dict) -> str:
         return json.dumps({"error": str(e)})
 
 # ---------- Rule-based fast path (no LLM needed) ----------
-QRY_KW = ["查看", "查询", "有什么", "有哪些", "看一下", "看看", "什么安排", "有啥", "查一下", "有什么事", "安排是", "说说", "告诉我", "列出", "显示"]
+QRY_KW = ["查看", "查询", "有什么", "有哪些", "看一下", "看看", "什么安排", "有啥", "查一下", "有什么事", "安排是", "说一下"]
 DEL_KW = ["删除", "取消", "移除", "去掉"]
+ADD_KW_RULE = ["添加", "新建", "创建", "加入", "增加", "加个", "帮我创建", "帮我添加", "请创建", "请添加"]
 DAY_MAP_RULE = {"今天": 0, "明天": 1, "后天": 2, "大后天": 3}
 WD_MAP_RULE = {
     "周一": 0, "周二": 1, "周三": 2, "周四": 3, "周五": 4, "周六": 5, "周日": 6,
@@ -323,11 +324,13 @@ def _format_events(events: list[dict]) -> str:
 
 
 def rule_query(events: list[dict], text: str) -> dict | None:
+    # Must have an explicit query keyword AND NOT be a creation request
     has_query_kw = any(kw in text for kw in QRY_KW)
-    date_range = _parse_query_date(text)
-    # If no query keyword AND no date keyword, skip (not a query)
-    if not has_query_kw and date_range is None:
+    if not has_query_kw:
         return None
+    if any(kw in text for kw in ADD_KW_RULE):
+        return None
+    date_range = _parse_query_date(text)
     if date_range is None:
         return None
     session = get_or_create_session(None)
